@@ -11,6 +11,9 @@ interface PhotoDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertFavorite(photo: GalleryItemEntity)
 
+    @Delete
+    suspend fun deleteFavorite(photo: GalleryItemEntity)
+
     @Query("DELETE FROM favorite_photos")
     suspend fun deleteAll()
 }

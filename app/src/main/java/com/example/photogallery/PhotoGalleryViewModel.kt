@@ -70,4 +70,21 @@ class PhotoGalleryViewModel(application: Application) : AndroidViewModel(applica
             getFavorites()  // Обновить список
         }
     }
+    fun addToFavorite(item: GalleryItem) {
+        viewModelScope.launch {
+            photoRepository.photoDao.insertFavorite(
+                GalleryItemEntity(item.id, item.title, item.url)
+            )
+        }
+    }
+
+    fun deleteFavorite(item: GalleryItem) {
+        viewModelScope.launch {
+            photoRepository.photoDao.deleteFavorite(
+                GalleryItemEntity(item.id, item.title, item.url)
+            )
+            // Обновляем список избранного сразу после удаления
+            getFavorites()
+        }
+    }
 }

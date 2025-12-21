@@ -2,34 +2,202 @@ package com.example.photogallery
 
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
+import androidx.compose.animation.*
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items
-import androidx.compose.material3.*
+import androidx.compose.foundation.lazy.grid.*
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.*
+import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
 import com.example.photogallery.api.GalleryItem
-import androidx.compose.foundation.clickable
+import com.example.photogallery.data.GalleryItemEntity
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
-            MaterialTheme {
-                Surface(
-                    modifier = Modifier.fillMaxSize(),
-                    color = Color.LightGray  // Серый фон
+            MaterialTheme(colorScheme = lightColorScheme(primary = Color(0xFF6200EE))) {
+                MainScreen()
+            }
+        }
+    }
+}
+
+@Composable
+fun MainScreen(viewModel: PhotoGalleryViewModel = viewModel()) {
+    var selectedTab by remember { mutableIntStateOf(0) }
+    var detailInfo by remember { mutableStateOf<Pair<GalleryItem, Boolean>?>(null) }
+
+    Scaffold(
+        bottomBar = {
+            NavigationBar {
+                NavigationBarItem(
+                    selected = selectedTab == 0,
+                    onClick = { selectedTab = 0 },
+                    icon = { Icon(Icons.Default.Search, "Поиск") },
+                    label = { Text("Поиск") }
+                )
+                NavigationBarItem(
+                    selected = selectedTab == 1,
+                    onClick = {
+                        selectedTab = 1
+                        viewModel.getFavorites()
+                    },
+                    icon = { Icon(Icons.Default.Favorite, "Избранное") },
+                    label = { Text("Избранное") }
+                )
+            }
+        }
+    ) { padding ->
+        Box(modifier = Modifier.padding(padding)) {
+            when (selectedTab) {
+                0 -> SearchScreen(viewModel) { detailInfo = it to false }
+                1 -> FavoritesScreen(viewModel) { detailInfo = it to true }
+            }
+        }
+    }
+
+    // ИСПРАВЛЕННАЯ АНИМАЦИЯ
+    AnimatedVisibility(
+        visible = detailInfo != null,
+        enter = slideInVertically { fullHeight -> fullHeight } + fadeIn(),
+        exit = slideOutVertically { fullHeight -> fullHeight } + fadeOut()
+    ) {
+        detailInfo?.let { (item, isFromFav) ->
+            FullScreenDetail(
+                item = item,
+                isAlreadyFavorite = isFromFav,
+                onDismiss = { detailInfo = null },
+                onAction = {
+                    if (isFromFav) viewModel.deleteFavorite(item) else viewModel.toggleFavorite(item)
+                    detailInfo = null
+                }
+            )
+        }
+    }
+}
+
+@Composable
+fun SearchScreen(viewModel: PhotoGalleryViewModel, onPhotoClick: (GalleryItem) -> Unit) {
+    var query by remember { mutableStateOf("") }
+    val items by viewModel.galleryItems.collectAsState()
+    val focusManager = LocalFocusManager.current
+
+    Column {
+        OutlinedTextField(
+            value = query,
+            onValueChange = { query = it },
+            modifier = Modifier.fillMaxWidth().padding(12.dp),
+            placeholder = { Text("Введите запрос...") },
+            trailingIcon = {
+                IconButton(onClick = {
+                    viewModel.searchPhotos(query)
+                    focusManager.clearFocus()
+                }) {
+                    Icon(Icons.Default.Search, "Найти")
+                }
+            },
+            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+            keyboardActions = KeyboardActions(onSearch = {
+                viewModel.searchPhotos(query)
+                focusManager.clearFocus()
+            }),
+            singleLine = true,
+            shape = RoundedCornerShape(16.dp)
+        )
+        PhotoGrid(items = items, onPhotoClick = onPhotoClick)
+    }
+}
+
+@Composable
+fun FavoritesScreen(viewModel: PhotoGalleryViewModel, onPhotoClick: (GalleryItem) -> Unit) {
+    val favorites by viewModel.favorites.collectAsState()
+
+    Column {
+        Row(
+            Modifier.fillMaxWidth().padding(16.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text("Ваша коллекция", style = MaterialTheme.typography.headlineSmall)
+            if (favorites.isNotEmpty()) {
+                TextButton(onClick = { viewModel.deleteAllFavorites() }) {
+                    Text("Удалить всё", color = Color.Red)
+                }
+            }
+        }
+
+        if (favorites.isEmpty()) {
+            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                Text("В избранном пока ничего нет", color = Color.Gray)
+            }
+        } else {
+            PhotoGrid(
+                items = favorites,
+                onPhotoClick = onPhotoClick,
+                showDeleteOverlay = true,
+                onDeleteClick = { viewModel.deleteFavorite(it) }
+            )
+        }
+    }
+}
+
+@Composable
+fun PhotoGrid(
+    items: List<GalleryItem>,
+    onPhotoClick: (GalleryItem) -> Unit,
+    showDeleteOverlay: Boolean = false,
+    onDeleteClick: (GalleryItem) -> Unit = {}
+) {
+    LazyVerticalGrid(
+        columns = GridCells.Fixed(2),
+        contentPadding = PaddingValues(8.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        items(items) { item ->
+            Box {
+                Card(
+                    shape = RoundedCornerShape(12.dp),
+                    modifier = Modifier.aspectRatio(1f).clickable { onPhotoClick(item) }
                 ) {
-                    PhotoGalleryScreen()
+                    AsyncImage(
+                        model = item.url,
+                        contentDescription = null,
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.fillMaxSize()
+                    )
+                }
+
+                if (showDeleteOverlay) {
+                    Surface(
+                        onClick = { onDeleteClick(item) },
+                        modifier = Modifier
+                            .align(Alignment.TopEnd)
+                            .padding(8.dp)
+                            .size(28.dp),
+                        shape = CircleShape,
+                        color = Color.Black.copy(alpha = 0.5f)
+                    ) {
+                        Icon(Icons.Default.Close, null, tint = Color.White, modifier = Modifier.padding(4.dp))
+                    }
                 }
             }
         }
@@ -38,97 +206,50 @@ class MainActivity : ComponentActivity() {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun PhotoGalleryScreen(
-    viewModel: PhotoGalleryViewModel = viewModel()
+fun FullScreenDetail(
+    item: GalleryItem,
+    isAlreadyFavorite: Boolean,
+    onDismiss: () -> Unit,
+    onAction: () -> Unit
 ) {
-    var searchQuery by remember { mutableStateOf("") }
-    var showMenu by remember { mutableStateOf(false) }
-    var showFavorites by remember { mutableStateOf(false) }
-
-    val items by viewModel.galleryItems.collectAsState()
-    val favorites by viewModel.favorites.collectAsState()
-
+    BackHandler(onBack = onDismiss)
     Scaffold(
+        containerColor = Color.Black,
         topBar = {
-            TopAppBar(
-                title = { Text("PhotoGallery") },
-                actions = {
-                    TextField(
-                        value = searchQuery,
-                        onValueChange = { searchQuery = it },
-                        label = { Text("Поиск") },
-                        modifier = Modifier.weight(1f)
-                    )
-                    Button(onClick = { viewModel.searchPhotos(searchQuery) }) {
-                        Text("Искать")
+            CenterAlignedTopAppBar(
+                title = { Text(item.title, color = Color.White, maxLines = 1) },
+                navigationIcon = {
+                    IconButton(onClick = onDismiss) {
+                        Icon(Icons.Default.ArrowBack, null, tint = Color.White)
                     }
-                    IconButton(onClick = { showMenu = true }) {
-                        Icon(Icons.Default.MoreVert, contentDescription = "Меню")
-                    }
-                    DropdownMenu(
-                        expanded = showMenu,
-                        onDismissRequest = { showMenu = false }
-                    ) {
-                        DropdownMenuItem(
-                            text = { Text("Показать избранное") },
-                            onClick = {
-                                showMenu = false
-                                viewModel.getFavorites()
-                                showFavorites = true
-                            }
-                        )
-                        DropdownMenuItem(
-                            text = { Text("Удалить все из БД") },
-                            onClick = {
-                                showMenu = false
-                                viewModel.deleteAllFavorites()
-                            }
-                        )
-                    }
-                }
+                },
+                colors = TopAppBarDefaults.centerAlignedTopAppBarColors(containerColor = Color.Transparent)
             )
         }
     ) { padding ->
-        if (showFavorites) {
-            LazyVerticalGrid(
-                columns = GridCells.Fixed(3),
-                contentPadding = PaddingValues(2.dp),
-                modifier = Modifier.padding(padding).fillMaxSize()
+        Box(Modifier.fillMaxSize().padding(padding)) {
+            AsyncImage(
+                model = item.url,
+                contentDescription = null,
+                modifier = Modifier.fillMaxSize().align(Alignment.Center),
+                contentScale = ContentScale.Fit
+            )
+
+            Button(
+                onClick = onAction,
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(bottom = 32.dp)
+                    .fillMaxWidth(0.8f),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = if (isAlreadyFavorite) Color.Red else Color.White,
+                    contentColor = if (isAlreadyFavorite) Color.White else Color.Black
+                )
             ) {
-                items(favorites) { item ->
-                    PhotoItem(item = item, onClick = { /* Просмотр */ })
-                }
-            }
-        } else {
-            LazyVerticalGrid(
-                columns = GridCells.Fixed(3),
-                contentPadding = PaddingValues(2.dp),
-                modifier = Modifier.padding(padding).fillMaxSize()
-            ) {
-                items(items) { item ->
-                    PhotoItem(
-                        item = item,
-                        onClick = { viewModel.toggleFavorite(item) }  // Обычный клик для избранного
-                    )
-                }
+                Icon(if (isAlreadyFavorite) Icons.Default.Delete else Icons.Default.Favorite, null)
+                Spacer(Modifier.width(8.dp))
+                Text(if (isAlreadyFavorite) "Удалить из избранного" else "Добавить в избранное")
             }
         }
-    }
-}
-
-@Composable
-fun PhotoItem(item: GalleryItem, onClick: () -> Unit) {
-    Card(
-        modifier = Modifier
-            .padding(1.dp)
-            .aspectRatio(1f)
-            .clickable(onClick = onClick)
-    ) {
-        AsyncImage(
-            model = item.url,
-            contentDescription = item.title,
-            modifier = Modifier.fillMaxSize(),
-            contentScale = ContentScale.Crop
-        )
     }
 }
