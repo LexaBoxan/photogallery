@@ -7,5 +7,6 @@ import androidx.room.PrimaryKey
 data class GalleryItemEntity(
     @PrimaryKey val id: String,
     val title: String,
-    val url: String
+    val url: String,
+    val owner: String
 )

@@ -49,7 +49,7 @@ class PhotoGalleryViewModel(application: Application) : AndroidViewModel(applica
     fun toggleFavorite(item: GalleryItem) {
         viewModelScope.launch {
             photoRepository.photoDao.insertFavorite(
-                GalleryItemEntity(item.id, item.title, item.url)
+                GalleryItemEntity(item.id, item.title, item.url, item.owner)
             )
         }
     }
@@ -58,7 +58,7 @@ class PhotoGalleryViewModel(application: Application) : AndroidViewModel(applica
         viewModelScope.launch {
             photoRepository.photoDao.getAllFavorites().collect { entities ->
                 _favorites.value = entities.map {
-                    GalleryItem(it.title, it.id, null, null, null, it.url)  // null для secret, server, farm; url_s = it.url
+                    GalleryItem(it.title, it.id, it.owner, null, null,null, it.url)  // null для secret, server, farm; url_s = it.url
                 }
             }
         }
@@ -73,7 +73,7 @@ class PhotoGalleryViewModel(application: Application) : AndroidViewModel(applica
     fun addToFavorite(item: GalleryItem) {
         viewModelScope.launch {
             photoRepository.photoDao.insertFavorite(
-                GalleryItemEntity(item.id, item.title, item.url)
+                GalleryItemEntity(item.id, item.title, item.url,item.owner)
             )
         }
     }
@@ -81,7 +81,7 @@ class PhotoGalleryViewModel(application: Application) : AndroidViewModel(applica
     fun deleteFavorite(item: GalleryItem) {
         viewModelScope.launch {
             photoRepository.photoDao.deleteFavorite(
-                GalleryItemEntity(item.id, item.title, item.url)
+                GalleryItemEntity(item.id, item.title, item.url,item.owner)
             )
             // Обновляем список избранного сразу после удаления
             getFavorites()

@@ -18,6 +18,7 @@ data class PhotoMetaData(
 data class GalleryItem(
     val title: String,
     val id: String,
+    val owner: String,
     val secret: String? = null,  // Опционально
     val server: String? = null,  // Опционально
     val farm: Int? = null,       // Опционально
