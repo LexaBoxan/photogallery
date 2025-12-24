@@ -23,6 +23,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
@@ -217,7 +218,11 @@ fun FullScreenDetail(
         containerColor = Color.Black,
         topBar = {
             CenterAlignedTopAppBar(
-                title = { Text(item.title, color = Color.White, maxLines = 1) },
+                title = { Column {
+                    Text(item.title, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text("by ${item.owner}", color = Color.White.copy(0.7f), style = MaterialTheme.typography.bodySmall)
+                    }
+                },
                 navigationIcon = {
                     IconButton(onClick = onDismiss) {
                         Icon(Icons.Default.ArrowBack, null, tint = Color.White)
